@@ -17,9 +17,7 @@ namespace Transceiver
         private const int TRANSMIT_DELAY_MS = 100;
 
         private static CancellationTokenSource cancellationToken = new CancellationTokenSource();
-        private static EventHubClient eventHubClient;
         private static string[] hubIds;
-        private static HttpClient _client;
         private static ServerHandler _server;
 
         static void Main(string[] args)
@@ -47,6 +45,7 @@ namespace Transceiver
                     Console.ReadLine();
                     await client.DisposeAsync();
                 }).Wait();
+                Console.ReadLine();
             }
             else if (hubOption.HasValue() && hubOption.Value().Equals("server"))
             {
