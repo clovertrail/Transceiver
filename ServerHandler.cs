@@ -24,8 +24,6 @@ namespace Microsoft.Azure.SignalR.Samples.Serverless
 
         private string _target = "SendMessage";
 
-        private bool _start = false;
-
         private bool _disposed = false;
 
         public ServerHandler(string connectionString, string[] hubNames)
@@ -41,20 +39,22 @@ namespace Microsoft.Azure.SignalR.Samples.Serverless
         {
             var random = new Random();
             var hubName = _hubNames[random.Next(_hubNames.Length)];
-            var tracer = new TracerToken()
-            {
-                Id = Guid.NewGuid(),
-                HubId = hubName,
-                GenerateTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-            };
-
             var url = GetBroadcastUrl(hubName);
             var request = new HttpRequestMessage(HttpMethod.Post, GetUrl(url));
 
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", _serviceUtils.GenerateAccessToken(url, _serverName));
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            request.Content = new StringContent(JsonConvert.SerializeObject(tracer), Encoding.UTF8, "application/json");
+            var payloadRequest = new PayloadMessage
+            {
+                Target = _target,
+                Arguments = new[]
+                {
+                    _serverName,
+                    $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
+                }
+            };
+            request.Content = new StringContent(JsonConvert.SerializeObject(payloadRequest), Encoding.UTF8, "application/json");
             var response = await _client.SendAsync(request);
             response.EnsureSuccessStatusCode();
         }
@@ -86,5 +86,14 @@ namespace Microsoft.Azure.SignalR.Samples.Serverless
                 _client.Dispose();
             }
         }
+
+        private class PayloadMessage
+        {
+            public string Target { get; set; }
+
+            public object[] Arguments { get; set; }
+        }
     }
+
+    
 }

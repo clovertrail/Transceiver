@@ -22,20 +22,25 @@ namespace Transceiver
 
         static void Main(string[] args)
         {
-            var settingsPath = Path.Combine(Environment.CurrentDirectory, "local.settings.json");
-            var settings = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(settingsPath));
-            var hubIdsPath = Path.Combine(Environment.CurrentDirectory, "HubIds.csv");
-            hubIds = File.ReadAllLines(hubIdsPath)
-                .Where(line => !string.IsNullOrWhiteSpace(line))
-                .ToArray();
-
+            
             var app = new CommandLineApplication();
             app.FullName = "Azure SignalR Serverless Sample";
             app.HelpOption("--help");
-            var hubOption = app.Option("-m|--mode", "Set mode: client or server", CommandOptionType.SingleValue, true);
-            if (hubOption.HasValue() && hubOption.Value().Equals("client"))
+            var settingsFile = app.Option("-s|--settingFile", "Set setting json file", CommandOptionType.SingleValue, true);
+            var hubIdsFile = app.Option("-b|--hubIdsFile", "Set hubIds file", CommandOptionType.SingleValue, true);
+
+            var settingsPath = Path.Combine(Environment.CurrentDirectory, settingsFile.Value());
+            var settings = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(settingsPath));
+
+            var hubIdsPath = Path.Combine(Environment.CurrentDirectory, hubIdsFile.Value());
+            hubIds = File.ReadAllLines(hubIdsPath)
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToArray();
+            app.Command("client", cmd =>
             {
-                Task.Run(async () =>
+                cmd.Description = "Start a client to listen to the service";
+                cmd.HelpOption("--help");
+                cmd.OnExecute(async () =>
                 {
                     var counter = new Counter();
                     var client = new ClientHandler(settings["SignalRServiceConnectionString"], hubIds, counter);
@@ -44,22 +49,29 @@ namespace Transceiver
                     Console.WriteLine("Client started...");
                     Console.ReadLine();
                     await client.DisposeAsync();
-                }).Wait();
-                Console.ReadLine();
-            }
-            else if (hubOption.HasValue() && hubOption.Value().Equals("server"))
+                    return 0;
+                });
+            });
+            app.Command("server", cmd =>
             {
-                _server = new ServerHandler(settings["SignalRServiceConnectionString"], hubIds);
-                var threadCount = 1;
-                var txThreads = Enumerable.Range(0, threadCount)
-                    .Select(_ => new Thread(TransmitEvents))
-                    .ToList();
-                foreach (var txThread in txThreads)
-                    txThread.Start();
+                cmd.Description = "Start a server to broadcast message through RestAPI";
+                cmd.HelpOption("--help");
+                var count = cmd.Argument("<threadCount>", "Set thread count");
+                cmd.OnExecute(() =>
+                {
+                    _server = new ServerHandler(settings["SignalRServiceConnectionString"], hubIds);
+                    var threadCount = int.Parse(count.Value);
+                    var txThreads = Enumerable.Range(0, threadCount)
+                        .Select(_ => new Thread(TransmitEvents))
+                        .ToList();
+                    foreach (var txThread in txThreads)
+                        txThread.Start();
 
-                Thread.Sleep(TimeSpan.FromMinutes(5));
-                cancellationToken.Cancel();
-            }
+                    Thread.Sleep(TimeSpan.FromMinutes(5));
+                    cancellationToken.Cancel();
+                    return 0;
+                });
+            });
             app.Execute(args);
         }
 
