@@ -24,17 +24,21 @@ namespace Transceiver
 
         static void Main(string[] args)
         {
-            var app = new CommandLineApplication();
-            app.FullName = "Azure SignalR Serverless Sample";
-            app.HelpOption("--help");
-            var settingsFile = app.Option("-s|--settingFile", "Set setting json file", CommandOptionType.SingleValue, true);
-            var hubIdsFile = app.Option("-b|--hubIdsFile", "Set hubIds file", CommandOptionType.SingleValue, true);
-
-            app.Command("client", cmd =>
+            if (args.Length != 1)
             {
-                cmd.Description = "Start a client to listen to the service";
-                cmd.HelpOption("--help");
-                cmd.OnExecute(async () =>
+                Console.WriteLine("Specify <client|server> mode");
+                return;
+            }
+            var settingsPath = Path.Combine(Environment.CurrentDirectory, "local.settings.json");
+            _settings = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(settingsPath));
+
+            var hubIdsPath = Path.Combine(Environment.CurrentDirectory, "HubIds.csv");
+            _hubIds = File.ReadAllLines(hubIdsPath)
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToArray();
+            if (args[0].Equals("client"))
+            {
+                Task.Run(async () =>
                 {
                     var counter = new Counter();
                     var client = new ClientHandler(_settings["SignalRServiceConnectionString"], hubIds, counter);
@@ -43,39 +47,21 @@ namespace Transceiver
                     Console.WriteLine("Client started...");
                     Console.ReadLine();
                     await client.DisposeAsync();
-                    return 0;
-                });
-            });
-
-            app.Command("server", cmd =>
+                }).Wait();
+            }
+            else
             {
-                cmd.Description = "Start a server to broadcast message through RestAPI";
-                cmd.HelpOption("--help");
-                var count = cmd.Argument("<threadCount>", "Set thread count");
-                cmd.OnExecute(() =>
-                {
-                    _server = new ServerHandler(_settings["SignalRServiceConnectionString"], hubIds);
-                    var threadCount = int.Parse(count.Value);
-                    var txThreads = Enumerable.Range(0, threadCount)
-                        .Select(_ => new Thread(TransmitEvents))
-                        .ToList();
-                    foreach (var txThread in txThreads)
-                        txThread.Start();
+                _server = new ServerHandler(_settings["SignalRServiceConnectionString"], hubIds);
+                var threadCount = 2;
+                var txThreads = Enumerable.Range(0, threadCount)
+                    .Select(_ => new Thread(TransmitEvents))
+                    .ToList();
+                foreach (var txThread in txThreads)
+                    txThread.Start();
 
-                    Thread.Sleep(TimeSpan.FromMinutes(5));
-                    cancellationToken.Cancel();
-                    return 0;
-                });
-            });
-            app.Execute(args);
-
-            var settingsPath = Path.Combine(Environment.CurrentDirectory, settingsFile.Value());
-            _settings = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(settingsPath));
-
-            var hubIdsPath = Path.Combine(Environment.CurrentDirectory, hubIdsFile.Value());
-            _hubIds = File.ReadAllLines(hubIdsPath)
-                .Where(line => !string.IsNullOrWhiteSpace(line))
-                .ToArray();
+                Thread.Sleep(TimeSpan.FromMinutes(5));
+                cancellationToken.Cancel();
+            }
         }
 
         static async void TransmitEvents()
