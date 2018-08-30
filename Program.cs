@@ -17,7 +17,6 @@ namespace Transceiver
         private const int TRANSMIT_DELAY_MS = 100;
 
         private static CancellationTokenSource cancellationToken = new CancellationTokenSource();
-        private static string[] hubIds;
         private static ServerHandler _server;
         private static Dictionary<string, string> _settings;
         private static string[] _hubIds;
@@ -41,7 +40,7 @@ namespace Transceiver
                 Task.Run(async () =>
                 {
                     var counter = new Counter();
-                    var client = new ClientHandler(_settings["SignalRServiceConnectionString"], hubIds, counter);
+                    var client = new ClientHandler(_settings["SignalRServiceConnectionString"], _hubIds, counter);
                     counter.StartPrint();
                     await client.StartAsync();
                     Console.WriteLine("Client started...");
@@ -51,7 +50,7 @@ namespace Transceiver
             }
             else
             {
-                _server = new ServerHandler(_settings["SignalRServiceConnectionString"], hubIds);
+                _server = new ServerHandler(_settings["SignalRServiceConnectionString"], _hubIds);
                 var threadCount = 2;
                 var txThreads = Enumerable.Range(0, threadCount)
                     .Select(_ => new Thread(TransmitEvents))
