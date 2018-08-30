@@ -60,6 +60,7 @@ namespace Transceiver
                 Thread.Sleep(TimeSpan.FromMinutes(5));
                 cancellationToken.Cancel();
             });
+            app.Execute(args);
         }
 
 
