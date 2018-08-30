@@ -35,7 +35,7 @@ namespace Transceiver
             app.FullName = "Azure SignalR Serverless Sample";
             app.HelpOption("--help");
             var hubOption = app.Option("-m|--mode", "Set mode: client or server", CommandOptionType.SingleValue, true);
-            if (hubOption.Value().Equals("client"))
+            if (hubOption.HasValue() && hubOption.Value().Equals("client"))
             {
                 Task.Run(async () =>
                 {
@@ -48,7 +48,7 @@ namespace Transceiver
                     await client.DisposeAsync();
                 }).Wait();
             }
-            else if (hubOption.Value().Equals("server"))
+            else if (hubOption.HasValue() && hubOption.Value().Equals("server"))
             {
                 _server = new ServerHandler(settings["SignalRServiceConnectionString"], hubIds);
                 var threadCount = 1;
