@@ -34,23 +34,24 @@ namespace Transceiver
             var app = new CommandLineApplication();
             app.FullName = "Azure SignalR Serverless Sample";
             app.HelpOption("--help");
-            app.Command("client", async cmd =>
+            var hubOption = app.Option("-m|--mode", "Set mode: client or server", CommandOptionType.SingleValue, true);
+            if (hubOption.Value().Equals("client"))
             {
-                var counter = new Counter();
-                var client = new ClientHandler(settings["SignalRServiceConnectionString"], hubIds, counter);
-                counter.StartPrint();
-                await client.StartAsync();
-                Console.WriteLine("Client started...");
-                Console.ReadLine();
-                await client.DisposeAsync();
-            });
-            app.Command("server", cmd =>
+                Task.Run(async () =>
+                {
+                    var counter = new Counter();
+                    var client = new ClientHandler(settings["SignalRServiceConnectionString"], hubIds, counter);
+                    counter.StartPrint();
+                    await client.StartAsync();
+                    Console.WriteLine("Client started...");
+                    Console.ReadLine();
+                    await client.DisposeAsync();
+                }).Wait();
+            }
+            else if (hubOption.Value().Equals("server"))
             {
-                cmd.Description = "Start a server to broadcast message through RestAPI";
-                cmd.HelpOption("--help");
                 _server = new ServerHandler(settings["SignalRServiceConnectionString"], hubIds);
-                var threads = cmd.Argument("<threadCount>", "Set number of thread count");
-                var threadCount = int.Parse(threads.Value);
+                var threadCount = 1;
                 var txThreads = Enumerable.Range(0, threadCount)
                     .Select(_ => new Thread(TransmitEvents))
                     .ToList();
@@ -59,10 +60,9 @@ namespace Transceiver
 
                 Thread.Sleep(TimeSpan.FromMinutes(5));
                 cancellationToken.Cancel();
-            });
+            }
             app.Execute(args);
         }
-
 
         static async void TransmitEvents()
         {
